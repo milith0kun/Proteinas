@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecA Protein Explorer — Edición Lujo Científico</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;600;800&display=swap"
+        rel="stylesheet">
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    <style>
+        :root {
+            --bg-deep: #030712;
+            --bg-glow: #0f172a;
+            --glass-bg: rgba(15, 23, 42, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+
+            --red: #f43f5e;
+            --teal: #14b8a6;
+            --gold: #f59e0b;
+            --pink: #ec4899;
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --green: #22c55e;
+
+            --font-display: 'Playfair Display', serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-deep);
+            background-image:
+                radial-gradient(circle at 15% 50%, rgba(20, 184, 166, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(244, 63, 94, 0.05) 0%, transparent 50%);
+            color: var(--text-main);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* Floating Canvas Glows */
+        .bg-blur {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            background: var(--teal);
+            filter: blur(150px);
+            opacity: 0.05;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: -1;
+            top: -100px;
+            right: -100px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* GLASSMORPHISM CLASSES */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 24px;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 5rem 0 3rem;
+            text-align: center;
+        }
+
+        header h1 {
+            font-family: var(--font-display);
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: -2px;
+            line-height: 1.1;
+            margin-bottom: 1rem;
+        }
+
+        header h1 span {
+            background: linear-gradient(135deg, var(--teal), #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-style: italic;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        section {
+            padding: 4rem 0;
+            position: relative;
+        }
+
+        .sec-tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--teal);
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            border: 1px solid rgba(20, 184, 166, 0.3);
+            border-radius: 50px;
+            margin-bottom: 1.5rem;
+        }
+
+        .sec-title {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        .sec-desc {
+            color: var(--text-muted);
+            margin-bottom: 3rem;
+            max-width: 800px;
+            font-size: 1.1rem;
+        }
+
+        /* 3D VIEWER LAYOUT */
+        .viewer-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            margin-bottom: 3rem;
+            align-items: stretch;
+        }
+
+        .viewer-info {
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+
+        .viewer-info::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 10%;
+            bottom: 10%;
+            width: 1px;
+            background: var(--glass-border);
+        }
+
+        .viewer-info h3 {
+            font-family: var(--font-display);
+            font-size: 3rem;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .viewer-info .badge {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.8rem;
+            border-radius: 5px;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+        }
+
+        .viewer-info p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Interactive 3D Canvas */
+        .viewer-canvas-wrapper {
+            position: relative;
+            height: 600px;
+            border-radius: 0 24px 24px 0;
+            overflow: hidden;
+            background: #010308;
+        }
+
+        .viewer-3d {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            inset: 0;
+        }
+
+        /* Cinematic Controls Overlay */
+        .cinematic-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 100px;
+            z-index: 10;
+        }
+
+        .btn-view {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #cbd5e1;
+            padding: 0.6rem 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-view:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .btn-view.active {
+            background: #fff;
+            color: #000;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Floating Toolbars (Top) */
+        .action-tools {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 0.5rem;
+            flex-direction: column;
+        }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 1.1rem;
+        }
+
+        .btn-icon:hover {
+            background: var(--teal);
+            color: #000;
+            border-color: var(--teal);
+            box-shadow: 0 0 15px var(--teal);
+        }
+
+        .btn-icon.active {
+            background: var(--teal);
+            color: #000;
+        }
+
+        .btn-icon.off {
+            background: rgba(244, 63, 94, 0.2);
+            color: var(--red);
+            border-color: rgba(244, 63, 94, 0.5);
+        }
+
+        .btn-icon.off::after {
+            content: '';
+            position: absolute;
+            width: 60%;
+            height: 2px;
+            background: var(--red);
+            transform: rotate(45deg);
+        }
+
+        /* Global Legend */
+        .domain-legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            margin-bottom: 3rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: #cbd5e1;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* Custom 3Dmol Hover Tooltip */
+        #hover-tooltip {
+            position: fixed;
+            display: none;
+            z-index: 100;
+            background: rgba(3, 7, 18, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--teal);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(20, 184, 166, 0.2);
+            pointer-events: none;
+            transition: opacity 0.1s;
+        }
+
+        .tt-title {
+            color: var(--teal);
+            font-weight: 800;
+            font-size: 0.9rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .tt-detail {
+            color: var(--text-muted);
+        }
+
+        /* Details Grid */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .detail-box {
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid;
+            border-left-width: 6px;
+            transition: transform 0.3s;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(10px);
+        }
+
+        .detail-box:hover {
+            transform: translateY(-5px);
+        }
+
+        .detail-box h4 {
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+            margin-bottom: 1rem;
+        }
+
+        .detail-box p,
+        .detail-box li {
+            font-size: 0.95rem;
+            color: #cbd5e1;
+            margin-bottom: 0.5rem;
+        }
+
+        .detail-box ul {
+            padding-left: 1.5rem;
+        }
+
+        /* Specific Box Colors */
+        .box-red {
+            border-color: rgba(244, 63, 94, 0.3);
+            border-left-color: var(--red);
+        }
+
+        .box-red:hover {
+            box-shadow: 0 10px 30px rgba(244, 63, 94, 0.15);
+        }
+
+        .box-red h4 {
+            color: var(--red);
+        }
+
+        .box-teal {
+            border-color: rgba(20, 184, 166, 0.3);
+            border-left-color: var(--teal);
+        }
+
+        .box-teal:hover {
+            box-shadow: 0 10px 30px rgba(20, 184, 166, 0.15);
+        }
+
+        .box-teal h4 {
+            color: var(--teal);
+        }
+
+        .box-gold {
+            border-color: rgba(245, 158, 11, 0.3);
+            border-left-color: var(--gold);
+        }
+
+        .box-gold:hover {
+            box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15);
+        }
+
+        .box-gold h4 {
+            color: var(--gold);
+        }
+
+        /* Loading Spinner */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: #010308;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            color: var(--teal);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            transition: opacity 0.5s;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(20, 184, 166, 0.1);
+            border-top-color: var(--teal);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media(max-width: 1000px) {
+            .viewer-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .viewer-info::after {
+                display: none;
+            }
+
+            .viewer-canvas-wrapper {
+                border-radius: 0 0 24px 24px;
+                height: 450px;
+            }
+
+            .viewer-info {
+                border-bottom: 1px solid var(--glass-border);
+                padding: 2rem;
+            }
+
+            header h1 {
+                font-size: 3rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-blur"></div>
+    <div id="hover-tooltip">
+        <div class="tt-title" id="tt-title">RES 120</div>
+        <div class="tt-detail" id="tt-detail">Chain A</div>
+    </div>
+
+    <header>
+        <div class="container">
+            <div class="sec-tag" style="margin-bottom:1rem;">Bioinformática Estructural Lvl 99</div>
+            <h1>RecA <span>Cinematic</span></h1>
+            <p>Exploración 3D hiper-realista. Renderizado por GPU local, datos atómicos del PDB. <strong>Pasa el ratón
+                    sobre los átomos para inspeccionarlos.</strong></p>
+        </div>
+    </header>
+
+    <section>
+        <div class="container">
+
+            <!-- LEYENDA GLOBAL -->
+            <div class="domain-legend">
+                <div class="legend-item" style="color:var(--red)">
+                    <div class="legend-dot" style="background:var(--red)"></div> N-terminal
+                </div>
+                <div class="legend-item" style="color:var(--teal)">
+                    <div class="legend-dot" style="background:var(--teal)"></div> Core ATPasa
+                </div>
+                <div class="legend-item" style="color:var(--gold)">
+                    <div class="legend-dot" style="background:var(--gold)"></div> C-terminal
+                </div>
+                <div class="legend-item" style="color:#facc15">
+                    <div class="legend-dot" style="background:#facc15; border-radius:3px"></div> Lys72 (Walker A)
+                </div>
+                <div class="legend-item" style="color:var(--pink)">
+                    <div class="legend-dot" style="background:var(--pink); border-radius:3px"></div> Asp144 (Walker B)
+                </div>
+                <div class="legend-item" style="color:var(--green)">
+                    <div class="legend-dot" style="background:var(--green)"></div> Hebras de ADN
+                </div>
+            </div>
+
+            <!-- ═══ VIEWER 1: 2REB ═══ -->
+            <div class="viewer-layout glass-panel">
+                <div class="viewer-info">
+                    <span class="badge"
+                        style="background:rgba(20,184,166,0.1); color:var(--teal); border:1px solid rgba(20,184,166,0.3)">2.30
+                        Å · Cristalografía</span>
+                    <h3 style="color:var(--teal)">2REB</h3>
+                    <p><strong>Filamento con ADN y ADP.</strong><br><br>Observa cómo la proteína envuelve herméticamente
+                        a la sencilla hebra de ADN en su surco principal. Un monómero (Cadena A).</p>
+
+                    <div style="margin-top:auto">
+                        <div class="sec-tag" style="font-size:0.6rem; padding:0.2rem 0.6rem;">Controles Extra</div>
+                        <div style="font-size:0.8rem; color:#94a3b8; font-family:var(--font-mono)">
+                            🖱️ Click izq + arrastrar = Rotar<br>
+                            🖱️ Scroll = Zoom<br>
+                            🖱️ Click der + arrastrar = Mover
+                        </div>
+                    </div>
+                </div>
+
+                <div class="viewer-canvas-wrapper">
+                    <div class="loading-overlay" id="load-2reb">
+                        <div class="spinner"></div>Cargando átomos...
+                    </div>
+                    <div class="viewer-3d" id="viewer-2reb"></div>
+
+                    <!-- Action Tools (Top Right) -->
+                    <div class="action-tools">
+                        <button class="btn-icon" id="spin-2reb" onclick="toggleSpin('2reb')"
+                            title="Auto-Rotación">↻</button>
+                        <button class="btn-icon" id="dna-2reb" onclick="toggleDNA('2reb')"
+                            title="Ocultar/Mostrar ADN">🧬</button>
+                    </div>
+
+                    <!-- Cinematic View Controls (Bottom Center) -->
+                    <div class="cinematic-controls" id="btns-2reb">
+                        <button class="btn-view active" onclick="setView('2reb','domains')">🎨 Dominios</button>
+                        <button class="btn-view" onclick="setView('2reb','surface')">🔮 Superficie</button>
+                        <button class="btn-view" onclick="setView('2reb','activesite')">🔬 Zoom Walker A/B</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ VIEWER 2: 3CMW ═══ -->
+            <div class="viewer-layout glass-panel">
+                <div class="viewer-info">
+                    <span class="badge"
+                        style="background:rgba(245,158,11,0.1); color:var(--gold); border:1px solid rgba(245,158,11,0.3)">3.00
+                        Å · Ensamblaje Complejo</span>
+                    <h3 style="color:var(--gold)">3CMW</h3>
+                    <p><strong>Estado catalítico complejo.</strong><br><br>5 protómeros de RecA interactuando
+                        simultáneamente con ADN, ADP, el análogo AlF₄⁻ y magnesio. Este es el estado verdaderamente
+                        "activo".</p>
+                </div>
+
+                <div class="viewer-canvas-wrapper">
+                    <div class="loading-overlay" id="load-3cmw">
+                        <div class="spinner"></div>Computando complejo...
+                    </div>
+                    <div class="viewer-3d" id="viewer-3cmw"></div>
+
+                    <div class="action-tools">
+                        <button class="btn-icon" id="spin-3cmw" onclick="toggleSpin('3cmw')"
+                            title="Auto-Rotación">↻</button>
+                        <button class="btn-icon" id="dna-3cmw" onclick="toggleDNA('3cmw')"
+                            title="Ocultar/Mostrar ADN">🧬</button>
+                    </div>
+
+                    <div class="cinematic-controls" id="btns-3cmw">
+                        <button class="btn-view active" onclick="setView('3cmw','domains')">🎨 Dominios</button>
+                        <button class="btn-view" onclick="setView('3cmw','surface')">🔮 Superficie Compleja</button>
+                        <button class="btn-view" onclick="setView('3cmw','activesite')">🔬 Zoom a Cofactores</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ VIEWER 3: 1XMS ═══ -->
+            <div class="viewer-layout glass-panel">
+                <div class="viewer-info">
+                    <span class="badge"
+                        style="background:rgba(236,72,153,0.1); color:var(--pink); border:1px solid rgba(236,72,153,0.3)">2.10
+                        Å · Alta Resolución</span>
+                    <h3 style="color:var(--pink)">1XMS</h3>
+                    <p><strong>Estado Inactivo.</strong><br><br>Sin ADN. Unidos al análogo no hidrolizable AMP-PNP y
+                        Mn²⁺. Nota cómo los bucles L1 y L2 están colapsados y cerrados.</p>
+                </div>
+
+                <div class="viewer-canvas-wrapper">
+                    <div class="loading-overlay" id="load-1xms">
+                        <div class="spinner"></div>Alineando coordenadas...
+                    </div>
+                    <div class="viewer-3d" id="viewer-1xms"></div>
+
+                    <div class="action-tools">
+                        <button class="btn-icon" id="spin-1xms" onclick="toggleSpin('1xms')"
+                            title="Auto-Rotación">↻</button>
+                    </div>
+
+                    <div class="cinematic-controls" id="btns-1xms">
+                        <button class="btn-view active" onclick="setView('1xms','domains')">🎨 Dominios</button>
+                        <button class="btn-view" onclick="setView('1xms','surface')">🔮 Cerrado/Superficie</button>
+                        <button class="btn-view" onclick="setView('1xms','activesite')">🔬 Sitio Bloqueado</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ══════════ DATA & INSIGHTS ══════════ -->
+    <section>
+        <div class="container">
+            <div style="text-align:center; margin-bottom: 4rem;">
+                <span class="sec-tag">Conocimiento Estructural</span>
+                <h2 class="sec-title">Lo que la "vista 3D" revela</h2>
+            </div>
+
+            <div class="detail-grid">
+                <div class="detail-box box-teal">
+                    <h4>Geometría Catalítica Exquisita</h4>
+                    <p>En el panel <strong>🔬 Zoom Walker A/B</strong> puedes apreciar esto: <strong>Lys72</strong> y
+                        <strong>Asp144</strong> están separadas por 72 tramos en la cadena unidimensional, pero el
+                        plegamiento AAA+ las curva para obligarlas a converger en un espacio de apenas <strong>~8
+                            Ångströms</strong>. Esa caverna perfecta es obligatoria para sujetar el ATP.</p>
+                </div>
+
+                <div class="detail-box box-red">
+                    <h4>Diseño Inteligente del Surco</h4>
+                    <p>Usa la vista <strong>🔮 Superficie</strong> y apaga el ADN (🧬). Verás el "canal" profundo (Surco
+                        primario) tallado por las hélices. El ADN se introduce allí y se estira artificialmente 1.5
+                        veces más de su forma de doble hélice B normal (de 3.4 Å a 5.1 Å por paso), lo cual es el primer
+                        evento clave para la recombinación genética.</p>
+                </div>
+
+                <div class="detail-box box-gold">
+                    <h4>Cambios Alostéricos (Bisagra)</h4>
+                    <p>Si comparas 3CMW (activo) contra 1XMS (inactivo), notas que el dominio Core y C-terminal rotan
+                        unos sobre otros como la tapa de un cofre. Al meter ATP en el bolsillo hidrofóbico, esa "tapa"
+                        se cierra firmemente, abriendo a cambio los "brazos" L1 y L2 hacia afuera para atrapar al
+                        genoma.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer style="padding:4rem 0; text-align:center; background:#010308; border-top:1px solid #1e293b;">
+        <h2 style="font-family:var(--font-display); font-size:2rem; margin-bottom:1rem; color:#fff;">Listo para la Tesis
+        </h2>
+        <p style="color:var(--text-muted); font-size:0.9rem;">Archivos fuente: <code>pdb_files/2REB.pdb</code> ·
+            <code>3CMW.pdb</code> · <code>1XMS.pdb</code></p>
+    </footer>
+
+    <script>
+        const viewers = {};
+        const models = {};
+        const viewStates = {};
+        const spinning = { '2reb': false, '3cmw': false, '1xms': false };
+        const dnaVisible = { '2reb': true, '3cmw': true, '1xms': true };
+
+        // Smooth hover tooltip setup
+        const tooltip = document.getElementById('hover-tooltip');
+        const ttTitle = document.getElementById('tt-title');
+        const ttDetail = document.getElementById('tt-detail');
+
+        function initHover(viewer) {
+            viewer.setHoverable({}, true,
+                function (atom, viewer, event) {
+                    if (!atom.label) {
+                        if (atom.hetflag) {
+                            ttTitle.innerText = `LIGAND: ${atom.resn}`;
+                            ttDetail.innerText = `Átomo: ${atom.atom} / Res Nº: ${atom.resi}`;
+                            ttTitle.style.color = '#f59e0b';
+                        } else {
+                            ttTitle.innerText = `RESIDUO: ${atom.resn} ${atom.resi}`;
+                            ttDetail.innerText = `Cadena ${atom.chain} | Dominio ${atom.resi <= 33 ? 'N-term' : atom.resi <= 269 ? 'Core' : 'C-term'}`;
+                            ttTitle.style.color = '#14b8a6';
+                        }
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = (event.clientX + 15) + 'px';
+                        tooltip.style.top = (event.clientY + 15) + 'px';
+                    }
+                },
+                function (atom, viewer) {
+                    tooltip.style.display = 'none';
+                }
+            );
+        }
+
+        // Aesthetics Functions
+        function colorByDomains(viewer, model, pdbKey) {
+            viewer.setStyle({}, {});
+
+            // N-term RED
+            model.setStyle({ resi: ['1-33'] }, { cartoon: { color: '#f43f5e' } });
+            // Core TEAL
+            model.setStyle({ resi: ['34-269'] }, { cartoon: { color: '#14b8a6' } });
+            // C-term GOLD
+            model.setStyle({ resi: ['270-999'] }, { cartoon: { color: '#f59e0b' } });
+
+            // DNA
+            if (dnaVisible[pdbKey]) {
+                ['B', 'D'].forEach(ch => model.setStyle({ chain: ch }, { cartoon: { color: '#22c55e', style: 'trace', radius: 1 } }));
+            } else {
+                ['B', 'D'].forEach(ch => model.setStyle({ chain: ch }, { hidden: true }));
+            }
+
+            // Highlight key elements
+            model.setStyle({ resi: 72, atom: ['CA', 'CB', 'CG', 'CD', 'CE', 'NZ', 'N', 'C', 'O'] }, { cartoon: { color: '#facc15' }, stick: { color: '#facc15', radius: 0.2 } });
+            model.setStyle({ resi: 144, atom: ['CA', 'CB', 'CG', 'OD1', 'OD2', 'N', 'C', 'O'] }, { cartoon: { color: '#ec4899' }, stick: { color: '#ec4899', radius: 0.2 } });
+            model.setStyle({ resi: ['157-164'] }, { cartoon: { color: '#a855f7' } }); // L1
+            model.setStyle({ resi: ['195-209'] }, { cartoon: { color: '#a855f7' } }); // L2
+
+            // Ligands
+            model.setStyle({ hetflag: true }, { sphere: { radius: 0.8, colorscheme: 'Jmol' } });
+        }
+
+        function showSurface(viewer, model, pdbKey) {
+            viewer.setStyle({}, {});
+
+            // Base protein muted pastel
+            model.setStyle({ resi: ['1-33'] }, { cartoon: { color: '#f43f5e', opacity: 0.2 } });
+            model.setStyle({ resi: ['34-269'] }, { cartoon: { color: '#14b8a6', opacity: 0.2 } });
+            model.setStyle({ resi: ['270-999'] }, { cartoon: { color: '#f59e0b', opacity: 0.2 } });
+
+            if (dnaVisible[pdbKey]) {
+                ['B', 'D'].forEach(ch => model.setStyle({ chain: ch }, { stick: { color: '#22c55e', radius: 0.5 } }));
+            } else {
+                ['B', 'D'].forEach(ch => model.setStyle({ chain: ch }, { hidden: true }));
+            }
+
+            model.setStyle({ hetflag: true }, { sphere: { radius: 1, colorscheme: 'Jmol' } });
+
+            // Dramatic glass surface
+            viewer.addSurface($3Dmol.SurfaceType.VDW, { opacity: 0.75, color: '#0f172a', wireframe: false, map: { prop: 'b', color: { min: 10, max: 80, gradient: 'bwr' } } }, { hetflag: false, chain: ['A', 'C', 'E'] });
+        }
+
+        function showActiveSite(viewer, model) {
+            viewer.setStyle({}, {});
+            // Make everything else a ghost
+            model.setStyle({}, { cartoon: { color: '#1e293b', opacity: 0.15 } });
+
+            // Highlight pocket
+            model.setStyle({ resi: ['65-90'] }, { cartoon: { color: '#14b8a6', opacity: 0.9 } });
+            model.setStyle({ resi: ['135-155'] }, { cartoon: { color: '#14b8a6', opacity: 0.9 } });
+
+            // Super High Res sticks for actives
+            model.setStyle({ resi: 72 }, { stick: { color: '#facc15', radius: 0.3 }, sphere: { color: '#facc15', radius: 0.5 } });
+            model.setStyle({ resi: 144 }, { stick: { color: '#ec4899', radius: 0.3 }, sphere: { color: '#ec4899', radius: 0.5 } });
+
+            // Show neighborhood
+            model.setStyle({ resi: [71, 73, 143, 145], atom: ['N', 'CA', 'C', 'O', 'CB'] }, { stick: { color: '#64748b', radius: 0.15 } });
+
+            // Emphasize Ligands (ATP, etc)
+            model.setStyle({ hetflag: true }, { stick: { colorscheme: 'Jmol', radius: 0.3 }, sphere: { colorscheme: 'Jmol', radius: 0.5 } });
+        }
+
+        // Controller Logic
+        function setView(pdbKey, viewType) {
+            const viewer = viewers[pdbKey];
+            const model = models[pdbKey];
+            if (!viewer || !model) return;
+
+            viewer.removeAllSurfaces();
+            viewStates[pdbKey] = viewType;
+
+            if (viewType === 'domains') {
+                colorByDomains(viewer, model, pdbKey);
+                viewer.zoomTo({}, 1000); // Cinematic smooth zoom out
+            }
+            else if (viewType === 'surface') {
+                showSurface(viewer, model, pdbKey);
+                viewer.zoomTo({}, 1000);
+            }
+            else if (viewType === 'activesite') {
+                showActiveSite(viewer, model);
+                // Smooth cinematic fly-in to active site!
+                viewer.zoomTo({ resi: [72, 144], chain: 'A' }, 1500);
+            }
+
+            viewer.render();
+
+            // UX Toggle Active Class
+            document.querySelectorAll(`#btns-${pdbKey} .btn-view`).forEach(b => b.classList.remove('active'));
+            document.querySelectorAll(`#btns-${pdbKey} .btn-view`).forEach(b => {
+                if (b.getAttribute('onclick').includes(viewType)) b.classList.add('active');
+            });
+        }
+
+        // Toggle Spin
+        function toggleSpin(pdbKey) {
+            spinning[pdbKey] = !spinning[pdbKey];
+            viewers[pdbKey].spin(spinning[pdbKey] ? 'y' : false, 0.5); // Smooth organic spin
+            const btn = document.getElementById('spin-' + pdbKey);
+            btn.classList.toggle('active', spinning[pdbKey]);
+        }
+
+        // Toggle DNA Visibility
+        function toggleDNA(pdbKey) {
+            dnaVisible[pdbKey] = !dnaVisible[pdbKey];
+            const btn = document.getElementById('dna-' + pdbKey);
+            btn.classList.toggle('off', !dnaVisible[pdbKey]);
+
+            // Re-run current view logic to apply visibility change
+            setView(pdbKey, viewStates[pdbKey] || 'domains');
+        }
+
+        // Initialization
+        function initViewer(containerId, pdbCode, pdbKey) {
+            const element = document.getElementById(containerId);
+            const viewer = $3Dmol.createViewer(element, {
+                backgroundColor: 'rgba(0,0,0,0)', // Transparent behind protein!
+                antialias: true,
+            });
+
+            $3Dmol.download('pdb:' + pdbCode, viewer, {}, function (m) {
+                models[pdbKey] = m;
+                viewers[pdbKey] = viewer;
+
+                // Fade out loader
+                const loader = document.getElementById('load-' + pdbKey);
+                loader.style.opacity = '0';
+                setTimeout(() => loader.style.display = 'none', 500);
+
+                initHover(viewer);
+                viewStates[pdbKey] = 'domains';
+                colorByDomains(viewer, m, pdbKey);
+                viewer.zoomTo();
+                viewer.render();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initViewer('viewer-2reb', '2REB', '2reb');
+            initViewer('viewer-3cmw', '3CMW', '3cmw');
+            initViewer('viewer-1xms', '1XMS', '1xms');
+
+            // Track mouse to update tooltip position if it's over a viewer
+            document.addEventListener('mousemove', function (e) {
+                if (tooltip.style.display === 'block') {
+                    tooltip.style.left = (e.clientX + 15) + 'px';
+                    tooltip.style.top = (e.clientY + 15) + 'px';
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>
